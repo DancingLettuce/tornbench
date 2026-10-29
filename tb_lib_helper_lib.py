@@ -5,10 +5,19 @@ from dataclasses import dataclass, field
 import tomllib 
 from pathlib import Path
 from itertools import islice
-
+import sys 
+import time    
 # git update
 # for d in */ ; do if [ -d "$d.git" ]; then echo -e "\n--- Updating $d ---"; (cd "$d" && git pull); fi; done 
 #b
+
+# virutal environment
+# python -m venv tb
+# Linux/macOS: source tb/bin/activate
+# Windows (Command Prompt): tb\Scripts\activate
+# Windows (PowerShell): tb\Scripts\Activate.ps1
+# /home/@@/tb/bin/python3
+
 
 class TimeDiff():
     def __init__(self,start_time=None, end_time=None):
@@ -228,8 +237,6 @@ def get_multiline_input(message :str="Enter your text (Type ':q' on a new line o
     # Stitch it all together with carriage returns
     return "\n".join(lines)
 
-
-
 def batched(iterable, n):
     """
     Batch data into tuples of length n. The last batch may be shorter.
@@ -298,3 +305,55 @@ def print_troubleshooting_info(scriptlog: ScriptLog = None, showenv: bool = Fals
             scriptlog.print_log_file(f"{key}={value}",summary=True)
             
     scriptlog.print_log_file("=" * 50)
+
+def sleep_with_progress_bar(seconds, bar_length=20, no_progress=False, client_id=None):        
+    if no_progress:
+        print(f"No progress bar, sleeping for {seconds} seconds with 1 second iteration.")
+    if seconds < 1:
+        time.sleep(seconds)
+        return
+    for i in range(seconds + 1):
+        # if client_id:
+        #     rc = models.RemoteControl.objects.get(client_id=client_id)
+        #     if 'disable' in rc.command:
+        #         print_message(message=f'Halting sleep because command is {rc.command}',logid=client_id)
+        #         rc.state='idle'
+        #         rc.description = ('Halted ' + rc.description)[:100]
+        #         rc.save()
+        #         sys.exit()
+        if not no_progress:
+            progress = i / seconds
+            filled_length = int(bar_length * progress)
+            bar = '█' * filled_length + '-' * (bar_length - filled_length)
+            print(f"[{bar}] {int(progress * 100)}%", end='\r')
+            sys.stdout.flush()
+        if i < seconds:
+            time.sleep(1)
+    #print("\nDone sleeping!                                    ")
+
+def flatten_json(y,cleankey=False, delimiter = '.', name=''):
+    out = {}
+    def flatten(x, name=name):
+        if type(x) is dict:
+            for a in x:
+                flatten(x[a], name + a + delimiter)
+        elif type(x) is list:
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + delimiter)
+                i += 1
+        else:
+            if cleankey:
+                name = name.replace('_','')
+            if len(delimiter) >0:
+                out[name[:-len(delimiter)]] = x
+            else:
+                out[name] = x
+    flatten(y)
+    return out
+
+
+
+
+
+#
