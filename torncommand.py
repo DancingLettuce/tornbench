@@ -62,73 +62,29 @@ def init_argparse():
     return ARGS,  arbitrary_args
 
 TOML_STRING="""# Auto-generated default configuration
-    SSH_CERTIFICATE_FILE=""
-    MEDIA_SOURCE=""
-    SCP_DESTINATION_PATH=""
-    TRANSCRIBER_PROJECT_ID=""
-    SERVICE_ACCOUNT_FILE=""
-    SEMANTIC_DATABASE=""
-    SEMANTIC_USER=""
-    SEMANTIC_PASSWORD=""
-    SEMANTIC_IP=""
-    ADMIN_EMAIL = ""
-    VAULT_MATTER_ID = ""
-    BASE_DOWNLOAD_DIR="" 
-    DRIVE_PARENT_FOLDER_ID=""
-    DRIVE_OWNER_EMAIL=""
-    DJANGO_ROOT=""
-    DJANGO_SETTINGS_MODULE=""
-    GOOGLE_GROUP_HIGHLIGHT=[] 
-    GOOGLEUSER_ACCOUNT_PASSWORD_DEFAULT = ""
-    GOOGLEUSER_DEFAULT_HOLD_OU = ""
-    TRANSCRIBE_PROMPT_ADDITIONAL_1 = ""
-    TRANSCRIBE_OWNER_EMAIL = ""
-    TRANSCRIBE_FOLDER_ID = ""
-    TRANSCRIBE_LECTURE_FOLDER_ID = ""
-    CLOUD_CMDB_DATABASE_NAME = ""
-    CLOUD_CMDB_DATABASE_HOST = ""
-    CLOUD_CMDB_DATABASE_USER = ""
-    CLOUD_CMDB_DATABASE_PASSWORD = ""
-    CLOUD_CMDB_DATABASE_DRIVER = ""
-    EMAIL_HOST = ''
-    EMAIL_USE_TLS = ""
-    EMAIL_PORT = ""
-    EMAIL_HOST_USER=''
-    EMAIL_HOST_PASSWORD=''
-    EMAIL_USER_LIST={} m
-    EMAIL_USER_TEST = ""
+    DATABASE_NAME = ""
+    DATABASE_HOST = ""
+    DATABASE_USER = ""
+    DATABASE_PASSWORD = ""
     """ 
 SCRIPT_DIR = Path(__file__).resolve().parent 
 #DEFAULT_CONFIG_PATH = SCRIPT_DIR / "secrets.toml" # for a local secrets or config file
 DEFAULT_CONFIG_PATH = SCRIPT_DIR.parent / "secrets" / "secrets.toml"
 DEFAULT_LOG_PATH = SCRIPT_DIR / "log.txt"
 ALLOWED_COMMANDS={
-    'menu':"", 'questionary':"",'upload':"param1=folder location (default=.MP3)",'transcribe':"",
-    'vault':"",'test':"",'approve_deviceuser':"",
-    'delete_device':"",'list_delegates':"",'get_users':"",
-    'list_user_groups':"",'delegate_sheet':"",
-    'unsuspendmoveouresetpassword':"",'transcribe_lecture':"param1=folderid",
-    'search_object':"",'moveou':"", "upload_file":"to gdrive param1=folderid",
-    "deprovision_user":"", "unsuspend_user":"", "suspend_user":"",
-    "delegate_account":"param1=mailbox param2=userwithaccess",
-    "listallprojects":"all | quick","listallorganisations":"","listallfolders":"",
-    "listallinstances":"param1=project_id","listallloadbalancers":"param1=project_id",
-    "listapis":"project_id",
-    "ingesttenable": "file_path",
-    "ingestdnszone": "file_path",
-    "csvexplode":r"filepath col(default=4)",
-    "securityreset":"Delete passkey, Force PW change, Reset backup codes, Delete oAuth",
-    "accountreset": "userlist,options (p=reset pw, o=move ou, a=delete oauth," +
-    "b=reset backup codes,u=unsuspend/unarchive," + 
-    "r=reset sign in,u=unsuspend,s=suspend " +
-    "g=delete groups) eg poabusg",
-    "syncalldirectoryusers":"",
-    "logoutstaleusers":"",
-    "deleteoauthstaleusers":"options s=suspended only"
+    'test':"--a test--", 
     }
   
 ARGS, ARBITRARY_ARGS = init_argparse()
-import lib_helper_lib as helperlib 
+try:
+    import tb_lib_helper_lib as helperlib 
+    imports_lib_helper_lib = True
+except Exception as e:
+    print(f"CRITICAL ERROR: Can not import tb_lib_helper_lib {e}")
+    imports_lib_helper_lib = False  
+    sys.exit()
+
+
 CONFIG = helperlib.init_secrets(toml_string=TOML_STRING,filename=ARGS.configfile) 
  
 from datetime import datetime as dt_datetime, timedelta  , timezone as dt_timezone 
@@ -136,3 +92,46 @@ import subprocess
 import json 
 import os  
 import getpass
+
+
+
+def main():
+    tdiff = helperlib.TimeDiff()
+    scriptlog = helperlib.ScriptLog()   
+    scriptlog.print_summary()  
+    
+    args_command = ARGS.command 
+    args_param1 = ARGS.param1
+    args_param2 = ARGS.param2
+    
+    if args_command and args_command.startswith('*'):
+        allowed_commands_str = '\n** '.join(
+            f"{key} {value}" 
+            for key, value in ALLOWED_COMMANDS.items()
+            if args_command[1:].lower() in key.lower())
+        print(f'Command filter on {args_command[1:]}')
+        print(f"** {allowed_commands_str}")
+    elif args_command not in ALLOWED_COMMANDS.keys(): 
+        allowed_commands_str = '\n** '.join(f"{key} {value}" for key, value in ALLOWED_COMMANDS.items())
+        print(f"Command {args_command} not found. The possible commands are: {allowed_commands_str}")
+    elif (args_command == 'test' ) :
+        print(f"Running test command with param1: {args_param1} and param2: {args_param2}")
+        # Add your test command logic here  
+        helperlib.print_troubleshooting_info(scriptlog=scriptlog)
+
+        
+        
+
+    else:  
+        print(f"No command passed {args_command}.") 
+
+    
+    scriptlog.print_summary()  
+    
+
+    print(f"Started:{tdiff.start_time_str} Total Duration: {tdiff.convert_timediff()}")
+    
+    
+   
+if __name__ == "__main__":
+    main()  
