@@ -13,7 +13,7 @@ import csv
 import urllib.parse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy import insert
 import tb_lib_sqlhandler_models 
 from tb_lib_helper_lib import batched
@@ -192,5 +192,29 @@ def update_or_create(session, model, defaults=None, **kwargs):
             
         session.flush()
         return instance, False
-        
-#
+   
+def get_statement_count(session, stmt) -> int:
+    """
+    Takes any SQLAlchemy select statement, swaps the output columns
+    for func.count(), and executes it to return the total count.
+    """
+    # with_only_columns swaps out model.player_id/model.name for func.count()
+    count_stmt = stmt.with_only_columns(func.count())
+
+    # We clear any explicit order_by, limit, or offset if they exist on the original stmt
+    # to optimize the database-side execution plan for the count
+    count_stmt = count_stmt.order_by(None).limit(None).offset(None)
+
+    return session.execute(count_stmt).scalar()      
+
+def trudate_from_ISO_date(isodate):
+    try:
+        parsed_datetime = datetime.strptime(isodate, "%Y-%m-%d %H:%M:%S")
+        return timezone.make_aware(parsed_datetime, timezone=pytz.utc)
+    except Exception as e:
+        print(f"Error creating truedate using unixtimestamp={isodate} ")
+        raise e 
+
+
+
+#  
