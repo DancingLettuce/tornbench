@@ -1,6 +1,7 @@
 """This filename is torncommand.py"""
 
 # /home/@@/tb/bin/python3 /home/@@/tornbench/torncommand.py test
+#rsync -a -v -P --exclude '*.db' --exclude '*.pyc' --exclude '__pycache__/*' --exclude '*wsgi*' --exclude '.git/*'  /home/u/*** ***@***:/home/***/;echo '***'
 
 
 import argparse   
@@ -83,6 +84,7 @@ ALLOWED_COMMANDS={
     'factionmembers':"get all faction members",
     'snapshot':"Get active users",
     'playerprofile_snapshot':"Get profile for all snapshot players",
+    'playerprofile': 'playerid/name/factionid/name pfm[p=player/f=faction only/m=all members of faction]'
     }
   
 ARGS, ARBITRARY_ARGS = init_argparse()
@@ -479,7 +481,7 @@ def get_player_profile_viaprofileapi(player_id:int, apikey:str=None, sleepiferro
                 api_json['signup_truedate'] = dt_datetime.strptime(api_json['signed_up'], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             if api_json['last_action_timestamp']:
                 api_json['last_action_truedate'] = dt_datetime.fromtimestamp(float(api_json['last_action_timestamp']), tz=timezone.utc)
-                timediff = dt_datetime.now(dt_timezone.utc)e - api_json['last_action_truedate'] 
+                timediff = dt_datetime.now(dt_timezone.utc) - api_json['last_action_truedate'] 
                 api_json['last_action_datediff_truedate_days'] = timediff.days
             company_id = api_json.get('job_company_id',None)
             
@@ -538,8 +540,101 @@ def get_player_profile_viaprofileapi(player_id:int, apikey:str=None, sleepiferro
                 feature='script', event='updated', model='PlayerProfile', model_name=self.player_profile.name)
         return self.player_profile
 
-def updateplayerprofile(player_id:int):
-    pass
+def updateplayerprofile(api_dictlist=None):
+    """Running playerprofile command with param1: 3974694 and param2: None
+        API response: {'rank': 'Outstanding Bonds Agent', 'level': 35, 
+        'honor': 500, 'gender': 'Male', 'property': 'Private Island', 
+        'signup': '2025-10-14 05:53:31', 
+        'awards': 260, 'friends': 4, 'enemies': 1, 'forum_posts': 7, 
+        'karma': 2, 'age': 383, 'role': 'Civilian', 'donator': 1, 
+        'player_id': 3974694, 'name': 'TonTin', 'property_id': 5719345, 
+        'revivable': 0, 'profile_image': 'https://profileimages.torn.com/05550ab6-9c28-4646-9719-75f254a7afae-3974694.png', 
+        'life': {'current': 1625, 'maximum': 1625}, 'status': {'description': 'Okay', 
+        'details': '', 'state': 'Okay', 'color': 'green', 'until': 0}, 
+        'job': {'job': 'Employee', 'position': 'Confectionist', 'company_id': 115809, 
+        'company_name': 'Reaper&#039;s Sweet Shoppe', 'company_type': 14}, 
+        'faction': {'position': 'Enforcer', 'faction_id': 48835, 
+        'days_in_faction': 382, 'faction_name': 'Valiance', 'faction_tag': 'VLNC', 
+        'faction_tag_image': '48835-34313.png'}, 'married': {'spouse_id': 3971658, 
+        'spouse_name': 'Lawzz', 'duration': 378}, 'basicicons': {'icon6': 'Male', 
+        'icon4': 'Subscriber', 'icon8': 'Married - To Lawzz', 'icon27': 
+        'Company - Confectionist of Reaper&#039;s Sweet Shoppe (Sweet Shop)', 
+        'icon9': 'Faction - Enforcer of Valiance'}, 'states': {'hospital_timestamp': 0, 'jail_timestamp': 0}, 
+        'last_action': {'status': 'Offline', 'timestamp': 1793543921, 'relative': '8 hours ago'}, 
+        'competition': {'name': 'Rock, Paper, Scissors', 'status': 'rock', 'current_hp': 255, 'max_hp': 256}} for query: 3974694
+
+        Running playerprofile command with param1: 3974694 and param2: None
+        API response: {'rank': 'Outstanding Bonds Agent', 'level': 35, 'honor': 500, 
+        'gender': 'Male', 'property': 'Private Island', 'signup': '2025-10-14 05:53:31', 
+        'awards': 260, 'friends': 4, 'enemies': 1, 'forum_posts': 7, 'karma': 2, 'age': 383, 
+        'role': 'Civilian', 'donator': 1, 'player_id': 3974694, 'name': 'TonTin', 'property_id': 5719345, 
+        'revivable': 0, 'profile_image': 'https://profileimages.torn.com/05550ab6-9c28-4646-9719-75f254a7afae-3974694.png', 
+        'life_current': 1625, 'life_maximum': 1625, 'status_description': 'Okay', 'status_details': '', 'status_state': 'Okay', 
+        'status_color': 'green', 'status_until': 0, 'job_job': 'Employee', 'job_position': 'Confectionist', 'job_company_id': 115809, 
+        'job_company_name': 'Reaper&#039;s Sweet Shoppe', 'job_company_type': 14, 'faction_position': 'Enforcer', 
+        'faction_faction_id': 48835, 'faction_days_in_faction': 382, 'faction_faction_name': 'Valiance', 'faction_faction_tag': 'VLNC', 
+        'faction_faction_tag_image': '48835-34313.png', 'married_spouse_id': 3971658, 'married_spouse_name': 'Lawzz', 
+        'married_duration': 378, 'basicicons_icon6': 'Male', 'basicicons_icon4': 'Subscriber', 'basicicons_icon8': 'Married - To Lawzz', 
+        'basicicons_icon27': 'Company - Confectionist of Reaper&#039;s Sweet Shoppe (Sweet Shop)', 
+        'basicicons_icon9': 'Faction - Enforcer of Valiance', 'states_hospital_timestamp': 0, 'states_jail_timestamp': 0, 
+        'last_action_status': 'Offline', 'last_action_timestamp': 1793543921, 'last_action_relative': '8 hours ago', 
+        'competition_name': 'Rock, Paper, Scissors', 'competition_status': 'rock', 'competition_current_hp': 255, 'competition_max_hp': 256} for query: 3974694
+        """
+    sqlh = tb_lib_sqlhandler.SqlAService(
+                    database_name =CONFIG.get('DATABASE_NAME',''), 
+                    database_host = CONFIG.get('DATABASE_HOST',''),
+                    database_user = CONFIG.get('DATABASE_USER',''),
+                    database_password = CONFIG.get('DATABASE_PASSWORD',''),
+                )
+    if isinstance(api_dictlist, dict):
+        api_dictlist=[api_dictlist,]
+    elif isinstance(api_dictlist, list):
+        pass
+    else:
+        raise "ERROR dictlist"
+    with Session(sqlh.engine) as session:
+        for api_dict in api_dictlist:
+            player_id = api_dict['player_id']
+            defaults={'level': api_dict.get('level',None),
+                      'age': api_dict.get('age',None),
+                      'name': api_dict.get('name',None),
+                      'life_current': api_dict.get('life_current',None),
+                      'life_maximum': api_dict.get('life_maximum',None),
+                      'status_description': api_dict.get('status_description',None),
+                      'status_details': api_dict.get('status_details',None),
+                      'status_state': api_dict.get('status_state',None),
+                      'status_color': api_dict.get('status_color',None),
+                      'faction_id': api_dict.get('faction_faction_id',None),
+                      'married_spouse_id': api_dict.get('married_spouse_id',None),
+                      'job_company_id': api_dict.get('job_company_id',None),
+                      'basicicons_icon27': api_dict.get('basicicons_icon27',None),
+                      'last_action_status': api_dict.get('last_action_status',None),
+                      'last_action_timestamp': api_dict.get('last_action_timestamp',None),
+                      'last_action_relative': api_dict.get('last_action_relative',None),
+
+
+
+                      }
+            
+            tb_lib_sqlhandler.update_or_create(session, tb_lib_sqlhandler_models.PlayerProfile,defaults=defaults, player_id=player_id)
+    
+
+def playerprofile(query:str='',apikey:str=None,version=1):
+    print(f"Running playerprofile command with param1: {ARGS.param1} and param2: {ARGS.param2}")
+    if helperlib.is_int(query):
+        api = get_api(section='user', apikey=apikey, slug=str(query),
+                        sleepiferror=True,version=version)
+        if version==1:
+            api['update_on_via']='update_on_viauserapi_v1'
+        api=helperlib.flatten_json(api,delimiter='_')
+    else:
+        api=None
+    
+    print(f"API response: {api} for query: {query}")
+    return api
+
+
+
 
 
 def playerprofile_snapshot():
@@ -878,6 +973,9 @@ def main():
         print(f"Running playerprofile_snapshot command with param1: {args_param1} and param2: {args_param2}")
         # Add your playerprofile_snapshot command logic here
         playerprofile_snapshot()  # Call the function to handle player profile snapshot
+    elif (args_command == 'playerprofile' ):
+        api=playerprofile(query=args_param1, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+        updateplayerprofile(api_dictlist=api)
 
 
 

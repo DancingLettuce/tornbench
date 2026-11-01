@@ -81,6 +81,7 @@ class PlayerProfile(Base):
     status_until: Mapped[Optional[int]] = mapped_column(BigInteger)
     job_company_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     job_company_type: Mapped[Optional[int]] = mapped_column(BigInteger)
+    faction_id: Mapped[Optional[int]] = mapped_column(BigInteger)    
     faction_faction_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     faction_faction_name: Mapped[Optional[str]] = mapped_column(String(200))
     married_spouse_id: Mapped[Optional[int]] = mapped_column(BigInteger)

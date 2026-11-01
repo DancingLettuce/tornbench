@@ -352,7 +352,12 @@ def flatten_json(y,cleankey=False, delimiter = '.', name=''):
     flatten(y)
     return out
 
-
+def is_int(value: str) -> bool:
+    try:
+        int(value)
+        return True
+    except ValueError:
+        return False
 
 
 
