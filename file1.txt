@@ -1,2 +1,3 @@
 file1a 
 line 2
+line 3
