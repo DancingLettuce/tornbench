@@ -2,7 +2,7 @@
 
 # /home/@@/tb/bin/python3 /home/@@/tornbench/torncommand.py test
 #rsync -a -v -P --exclude '*.db' --exclude '*.pyc' --exclude '__pycache__/*' --exclude '*wsgi*' --exclude '.git/*'  /home/u/*** ***@***:/home/***/;echo '***'
-
+# ctrl-k 0 fold
 
 import argparse   
 from pathlib import Path
@@ -73,6 +73,9 @@ TOML_STRING="""# Auto-generated default configuration
     DATABASE_PASSWORD = ""
     DATABASE_DRIVER = ""
     TORN_API_KEY = ""
+    BAZAAR_API_URL = "" 
+    REMOTE_ROBOT_URL = ""
+    REMOTE_ROBOT_CLIENT_ID = ""
     """ 
 SCRIPT_DIR = Path(__file__).resolve().parent 
 #DEFAULT_CONFIG_PATH = SCRIPT_DIR / "secrets.toml" # for a local secrets or config file
@@ -84,7 +87,9 @@ ALLOWED_COMMANDS={
     'factionmembers':"get all faction members",
     'snapshot':"Get active users",
     'playerprofile_snapshot':"Get profile for all snapshot players",
-    'playerprofile': 'playerid/name/factionid/name pfm[p=player/f=faction only/m=all members of faction]'
+    'playerprofile': 'playerid/name/factionid/name pfm[p=player/f=faction only/m=all members of faction/0=no datecheck]',
+    'getitems': 'get items from torn api',
+    'seleniumbazaar': 'get bazaar data using Selenium',
     }
   
 ARGS, ARBITRARY_ARGS = init_argparse()
@@ -159,12 +164,22 @@ def _get_csvresponse_from_requests(apiendpoint=None, headers=None, timeout=5):
 
 def get_api(section='', request=None, selections='', cat='', ts_to='', 
         ts_from='', id='', slug='', urlbreadcrumb='', version=2,
-        apikey='', user=None, limit='',offset='', raw='', sleepiferror=False,
+        apikey='', user=None, limit='',offset='', raw='', sleepiferror=True,
         debuglog=None, no_progress=False, client_id=None, format='json'):
-    #print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
+    """
+    version 1 
+    https://api.torn.com/user/3558395?selections=&key=YdLcNsoN9XKZWcPy
+    https://api.torn.com/faction/48835?selections=&key=YdLcNsoN9XKZWcPy
+    version 2
+    https://api.torn.com/v2/user/basic
+    https://api.torn.com/v2/user/3558395/profile
+    https://api.torn.com/v2/user/3558395/personalstats?cat=all
+    https://api.torn.com/v2/faction/search
+    https://api.torn.com/v2/faction/48835/members
+    """
+    print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
     requests.packages.urllib3.disable_warnings(InsecureRequestWarning) 
     headers = None
- 
     if version == 1:
         apiurl_v1 = 'https://api.torn.com/'
         apiendpoint = (apiurl_v1 + section + 
@@ -191,7 +206,8 @@ def get_api(section='', request=None, selections='', cat='', ts_to='',
                 (('&offset=' + offset ) if offset else '') )
                 )
         headers = {'Authorization':'ApiKey '+ apikey}    
-    
+    #print(f"Calling API endpoint: {apiendpoint} with headers: {headers}")
+      
     responsejson = None
     ###  get the response and catch error, repeat 
     trycount = 0
@@ -207,7 +223,7 @@ def get_api(section='', request=None, selections='', cat='', ts_to='',
             #     debuglog.debug(message=f"apiendpoint={apiendpoint}")
             # print_log_file(log_text=f"api2apiendpoint={apiendpoint}")
             #print(f"Calling API endpoint: {apiendpoint} (Attempt {trycount + 1})")
-            trycount +=1
+            trycount +=1  
             responsejson, response = _get_response_from_requests(apiendpoint=apiendpoint, headers=headers, timeout=5)  # returns json or raises error
             #print(f"API call successful. Response JSON: {responsejson}")
             # if debuglog:
@@ -447,7 +463,7 @@ def get_snapshot():
     print(f"Updating existing records")  
     sqlh.execute_sql(sql)
 
-def get_player_profile_viaprofileapi(player_id:int, apikey:str=None, sleepiferror = True, version=1):
+def donotuse__get_player_profile_viaprofileapi(player_id:int, apikey:str=None, sleepiferror = True, version=1):
         #https://api.torn.com/v2/user?id=3287528
         
       
@@ -607,20 +623,32 @@ def updateplayerprofile(api_dictlist=None):
                       'faction_id': api_dict.get('faction_faction_id',None),
                       'married_spouse_id': api_dict.get('married_spouse_id',None),
                       'job_company_id': api_dict.get('job_company_id',None),
+                      'job_company_type': api_dict.get('job_company_type',None),
                       'basicicons_icon27': api_dict.get('basicicons_icon27',None),
                       'last_action_status': api_dict.get('last_action_status',None),
                       'last_action_timestamp': api_dict.get('last_action_timestamp',None),
                       'last_action_relative': api_dict.get('last_action_relative',None),
-
-
-
+                      'basicicons_icon4': api_dict.get('basicicons_icon4',None), 
+                      'signup': api_dict.get('signup',None), 
+                      'updated_on': dt_datetime.now(dt_timezone.utc),
                       }
+            if api_dict.get('signed_up',None):
+                defaults['signup_truedate'] = dt_datetime.strptime(api_dict['signed_up'], "%Y-%m-%d %H:%M:%S").replace(tzinfo=dt_timezone.utc)
+            if api_dict['last_action_timestamp']:
+                defaults['last_action_truedate'] = dt_datetime.fromtimestamp(float(api_dict['last_action_timestamp']), tz=dt_timezone.utc)
+                timediff = dt_datetime.now(dt_timezone.utc) - defaults['last_action_truedate']  
+                defaults['last_action_datediff_truedate_days'] = timediff.days
+            if api_dict.get('update_on_via'):
+                defaults[api_dict['update_on_via']] = dt_datetime.now(dt_timezone.utc)
+
+            #print(f"Updating or creating player profile for player_id: {player_id} with defaults: {defaults}")
             
             tb_lib_sqlhandler.update_or_create(session, tb_lib_sqlhandler_models.PlayerProfile,defaults=defaults, player_id=player_id)
+        session.commit()  # Commit after processing all player profiles
     
 
 def playerprofile(query:str='',apikey:str=None,version=1):
-    print(f"Running playerprofile command with param1: {ARGS.param1} and param2: {ARGS.param2}")
+    #print(f"Running playerprofile command with param1: {ARGS.param1} and param2: {ARGS.param2}")
     if helperlib.is_int(query):
         api = get_api(section='user', apikey=apikey, slug=str(query),
                         sleepiferror=True,version=version)
@@ -630,7 +658,7 @@ def playerprofile(query:str='',apikey:str=None,version=1):
     else:
         api=None
     
-    print(f"API response: {api} for query: {query}")
+    #print(f"API response: {api} for query: {query}")
     return api
 
 
@@ -652,6 +680,7 @@ def playerprofile_snapshot():
     model = tb_lib_sqlhandler_models.PlayerProfile
     totalfaction_processed = 0
     totalmembers_processed = 0
+    tdiff = helperlib.TimeDiff()
     with Session(sqlh.engine) as session:
         count_stmt = (
             select(func.count())
@@ -687,8 +716,31 @@ def playerprofile_snapshot():
         results = session.execute(stmt).all()
 
 #        # 4. Accessing the results
+        count = 0
         for row in results:
             print(f"ID: {row.player_id}, Name: {row.name}")
+            api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            updateplayerprofile(api_dictlist=api)
+        session.commit()  # Commit after processing all player profiles
+
+        stmt = (
+            select(model.player_id, model.name)
+            .where(model.update_on_viasnapshotapi > dt_datetime.now(dt_timezone.utc) - timedelta(hours=24))
+            .where(or_(  
+                    model.update_on_viauserapi_v1 < playerprofile_threshold_time,
+                    model.update_on_viauserapi_v1.is_(None)
+                )  
+            ) )
+              
+        total_records = total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
+        print(f"Total snapshot players: {total_records}")
+        results = session.execute(stmt).all()
+        for row in results:
+            count += 1
+            print(f"{count}/{total_records}: Fetching player profile for player_id: {row.player_id}, name: {row.name}  ..{tdiff.convert_timediff()} ")
+            
+            api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            updateplayerprofile(api_dictlist=api)
 
 
 def factionsearch():
@@ -916,6 +968,65 @@ def factionmembers(cooldown_hours: int = 4):
     #     for row in results:
     #         print(f"ID: {row.id} | Name: {row.name} | Leader ID: {row.leader_id}")  
 
+def get_items():
+    print(f"Running getitems command with param1: {ARGS.param1} and param2: {ARGS.param2}")
+    """Calling API endpoint: https://api.torn.com/v2/torn/items? (Attempt 1)
+    API response: {'id': 2, 'name': 'Baseball Bat', 
+    'description': 'A long, solid wooden bat. As a weapon, it can land quite a blow on your enemy.', 
+    'effect': None, 'requirement': None, 'image': 'https://www.torn.com/images/items/2/large.png', 
+    'type': 'Weapon', 'sub_type': 'Clubbing', 'is_masked': False, 'is_tradable': True, 'is_found_in_city': True, 
+    'value': {'vendor': {'country': 'Torn', 'name': "Big Al's Gun Shop"}, 'shops': [{'country': 'Torn', 
+    'shop': "Big Al's Gun Shop", 'buy_price': 200, 'sell_price': 130}], 'buy_price': 200, 'sell_price': 130, 
+    'market_price': 144}, 'circulation': 767399, 'details': {'category': 'Melee', 'stealth_level': 6.6, 
+    'base_stats': {'damage': 16, 'accuracy': 57, 'armor': 0}, 'ammo': None, 'mods': []}}"""
+
+    sqlh = tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+            )
+    with Session(sqlh.engine) as session:
+        # https://api.torn.com/v2/torn/items
+        # https://api.torn.com/v2/torn/items
+        try:
+            api_response = get_api(section='torn', apikey=CONFIG.get('TORN_API_KEY', ''),
+                slug=None, urlbreadcrumb='items' ,sleepiferror=True, 
+                no_progress=False, format='json', version=2)
+        except Exception as e: 
+            raise e
+         
+        """Defaults for item ID 1: {'name': 'Hammer', 
+        'description': 'A small, lightweight tool used in the building industry. Can also be used as a weapon.', 
+        'effect': None, 'requirement': None, 'image': 'https ://www.torn.com/images/items/1/large.png', 'type': 'Weapon', 
+        'sub_type': 'Clubbing', 'is_masked': False, 'is_tradable': True, 'is_found_in_city': True, 'buy_price': None, 'sell_price': None, 
+        'value_bu y_price': None, 'value_sell_price': None, 'value_market_price': None, 'circulation': 3301462, 'details_category': None, 
+        'details_stealth_level': None, 'details_base_stats_damage': None, 'details_base_ stats_accuracy': None, 'details_base_stats_armor': None}
+        """
+        for item_data in api_response['items']:
+            item_data = helperlib.flatten_json(item_data, delimiter='_')
+            print(f"Processing item ID: {item_data.get('id')} - Name: {item_data.get('name')}")
+            
+            defaults = {
+                'name': item_data.get('name'),
+                'description': item_data.get('description'),
+                'effect': item_data.get('effect'),
+                'requirement': item_data.get('requirement'),
+                'image': item_data.get('image'),    
+                'type': item_data.get('type'),
+                'sub_type': item_data.get('sub_type'),
+                'is_masked': item_data.get('is_masked'),
+                'is_tradable': item_data.get('is_tradable'), 
+                'is_found_in_city': item_data.get('is_found_in_city'), 
+                'value_buy_price': item_data.get('value_buy_price'),
+                'value_sell_price': item_data.get('value_sell_price'), 
+                'value_market_price': item_data.get('value_market_price'),
+                'circulation': item_data.get('circulation'),
+            } 
+            tb_lib_sqlhandler.update_or_create(session=session, model=tb_lib_sqlhandler_models.Item, defaults=defaults, item_id=int(item_data.get('id')))
+        session.commit()  # Final commit after processing all rows
+        
+
 def test_db_connection():
     print(f"Testing database connection with config: {CONFIG}")
     sqlh = tb_lib_sqlhandler.SqlAService(
@@ -974,8 +1085,57 @@ def main():
         # Add your playerprofile_snapshot command logic here
         playerprofile_snapshot()  # Call the function to handle player profile snapshot
     elif (args_command == 'playerprofile' ):
-        api=playerprofile(query=args_param1, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
-        updateplayerprofile(api_dictlist=api)
+        if not args_param2 or 'p' in args_param2:
+            # update using update_on_viauserapi_v1
+            api=playerprofile(query=args_param1, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            updateplayerprofile(api_dictlist=api)
+        elif 'f' in args_param2:
+            model = tb_lib_sqlhandler_models.PlayerProfile
+            threshold_time = dt_datetime.now(dt_timezone.utc) - timedelta(minutes=5)
+            with Session(tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+                ).engine) as session:
+                stmt = (
+                select(model.player_id, model.name)
+                    .where(model.faction_id==args_param1)
+                )
+                if args_param2 and '0' not in args_param2:
+                    stmt = stmt.where(
+                            or_(  
+                                model.update_on_viauserapi_v1 < threshold_time,
+                                model.update_on_viauserapi_v1.is_(None)
+                            )  
+                        )
+                stmt =stmt.order_by(model.player_id.asc())
+                total_records = total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt) 
+                print(f"Total faction members for {args_param1}: {total_records} ..{tdiff.convert_timediff()} minutes")
+                results = session.execute(stmt).all()
+                for row in results: 
+                    print(f"Fetching player profile for player_id: {row.player_id}, name: {row.name} ..{tdiff.convert_timediff()} minutes")
+                    api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+                    updateplayerprofile(api_dictlist=api)
+    elif (args_command == 'getitems' ):
+        get_items()
+    elif (args_command == 'seleniumbazaar' ):
+        import tb_lib_selenium
+        tb_lib_selenium.REMOTE_ROBOT_URL = CONFIG.get('REMOTE_ROBOT_URL', '')
+        tb_lib_selenium.BAZAAR_API_URL = CONFIG.get('BAZAAR_API_URL', '')
+        tb_lib_selenium.REMOTE_ROBOT_CLIENT_ID = CONFIG.get('REMOTE_ROBOT_CLIENT_ID', '')
+        if args_param1 and args_param1.lower() == 'getremotecontrolstate':
+            if args_param2:
+                client_id=args_param2
+            else:
+                client_id=tb_lib_selenium.REMOTE_ROBOT_CLIENT_ID
+            response = tb_lib_selenium.getremotecontrolstate(client_id=client_id)
+            print(f"Remote control state for client_id {client_id}: {response} {response.json() if hasattr(response, 'json') else ''}")
+             
+        else: 
+            tb_lib_selenium.getbazaar(bazaar_api_url=CONFIG.get('BAZAAR_API_URL',''),) 
+  
+        
 
 
 

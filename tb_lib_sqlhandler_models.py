@@ -133,3 +133,29 @@ class PlayerSnapshotStaging(Base):
     time_played: Mapped[Optional[str]] = mapped_column(String(200))
     awards: Mapped[Optional[str]] = mapped_column(String(200))
     update_on_viasnapshotapi: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET)
+ 
+class Item(Base):
+    __tablename__ = "torn_item"  
+    # Primary Key
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # Datetimes
+    created_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    updated_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    item_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    name: Mapped[Optional[str]] = mapped_column(String(200))
+    description: Mapped[Optional[str]] = mapped_column(String(200))
+    effect: Mapped[Optional[str]] = mapped_column(String(200))
+    type: Mapped[Optional[str]] = mapped_column(String(200))
+    requirement: Mapped[Optional[str]] = mapped_column(String(200))
+    sub_type: Mapped[Optional[str]] = mapped_column(String(200))
+    value_buy_price: Mapped[Optional[int]] = mapped_column(BigInteger)
+    value_sell_price: Mapped[Optional[int]] = mapped_column(BigInteger)
+    value_market_price: Mapped[Optional[int]] = mapped_column(BigInteger)
+    circulation: Mapped[Optional[int]] = mapped_column(BigInteger)
+    is_tradable: Mapped[Optional[str]] = mapped_column(String(200))
+    image: Mapped[Optional[str]] = mapped_column(String(200))
+    is_masked: Mapped[Optional[str]] = mapped_column(String(200))
+    is_found_in_city: Mapped[Optional[str]] = mapped_column(String(200))
+   
+
+     
