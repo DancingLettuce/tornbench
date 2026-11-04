@@ -177,7 +177,7 @@ def get_api(section='', request=None, selections='', cat='', ts_to='',
     https://api.torn.com/v2/faction/search
     https://api.torn.com/v2/faction/48835/members
     """
-    print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
+    # print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
     requests.packages.urllib3.disable_warnings(InsecureRequestWarning) 
     headers = None
     if version == 1:
