@@ -79,6 +79,7 @@ class PlayerProfile(Base):
     status_state: Mapped[Optional[str]] = mapped_column(String(200))
     status_color: Mapped[Optional[str]] = mapped_column(String(200))
     status_until: Mapped[Optional[int]] = mapped_column(BigInteger)
+    status_until_truedate: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET) 
     job_company_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     job_company_type: Mapped[Optional[int]] = mapped_column(BigInteger)
     faction_id: Mapped[Optional[int]] = mapped_column(BigInteger)    
@@ -157,5 +158,19 @@ class Item(Base):
     is_masked: Mapped[Optional[str]] = mapped_column(String(200))
     is_found_in_city: Mapped[Optional[str]] = mapped_column(String(200))
    
-
+class Bounty(Base):
+    __tablename__ = "torn_bounty"
+    # Primary Key
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # Datetimes
+    created_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    updated_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    reward: Mapped[Optional[int]] = mapped_column(BigInteger)
+    reason: Mapped[Optional[str]] = mapped_column(String(200))
+    quantity: Mapped[Optional[int]] = mapped_column(BigInteger)
+    valid_until: Mapped[Optional[int]] = mapped_column(BigInteger)
+    valid_until_truedate: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET)
+    lister_player_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    target_player_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    
      

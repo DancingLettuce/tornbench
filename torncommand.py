@@ -90,6 +90,8 @@ ALLOWED_COMMANDS={
     'playerprofile': 'playerid/name/factionid/name pfm[p=player/f=faction only/m=all members of faction/0=no datecheck]',
     'getitems': 'get items from torn api',
     'seleniumbazaar': 'get bazaar data using Selenium',
+    'bounties': 'get bounties a[a=all]', 
+    'playerprofile_bounties': 'get player profile for all bountied players a10[a=all/10=updated 10mins/24=not updated 24 hours]',
     }
   
 ARGS, ARBITRARY_ARGS = init_argparse()
@@ -161,7 +163,6 @@ def _get_csvresponse_from_requests(apiendpoint=None, headers=None, timeout=5):
     except Exception as e:
         raise e
 
-
 def get_api(section='', request=None, selections='', cat='', ts_to='', 
         ts_from='', id='', slug='', urlbreadcrumb='', version=2,
         apikey='', user=None, limit='',offset='', raw='', sleepiferror=True,
@@ -177,7 +178,7 @@ def get_api(section='', request=None, selections='', cat='', ts_to='',
     https://api.torn.com/v2/faction/search
     https://api.torn.com/v2/faction/48835/members
     """
-    # print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
+    #print(f"get_api called with section={section}, request={request}, selections={selections}, cat={cat}, ts_to={ts_to}, ts_from={ts_from}, id={id}, slug={slug}, urlbreadcrumb={urlbreadcrumb}, version={version}, apikey={apikey}, user={user}, limit={limit}, offset={offset}, raw={raw}, sleepiferror={sleepiferror}")
     requests.packages.urllib3.disable_warnings(InsecureRequestWarning) 
     headers = None
     if version == 1:
@@ -286,7 +287,6 @@ def get_api(section='', request=None, selections='', cat='', ts_to='',
     #     f"Response code is {response} data={responsejson}" )
     return responsejson
      
-
 def get_factionmembers_viamembersapi(faction_id:int=None, apikey:str=None):
         #https://api.torn.com/v2/faction/5431/members
             try:
@@ -629,7 +629,8 @@ def updateplayerprofile(api_dictlist=None):
                       'last_action_timestamp': api_dict.get('last_action_timestamp',None),
                       'last_action_relative': api_dict.get('last_action_relative',None),
                       'basicicons_icon4': api_dict.get('basicicons_icon4',None), 
-                      'signup': api_dict.get('signup',None), 
+                      'status_until': api_dict.get('status_until',None),
+                      'signup': api_dict.get('signup',None),    
                       'updated_on': dt_datetime.now(dt_timezone.utc),
                       }
             if api_dict.get('signed_up',None):
@@ -640,31 +641,48 @@ def updateplayerprofile(api_dictlist=None):
                 defaults['last_action_datediff_truedate_days'] = timediff.days
             if api_dict.get('update_on_via'):
                 defaults[api_dict['update_on_via']] = dt_datetime.now(dt_timezone.utc)
+            if api_dict.get('status_until',None):
+                defaults['status_until_truedate'] = dt_datetime.fromtimestamp(float(api_dict['status_until']), tz=dt_timezone.utc)  
 
             #print(f"Updating or creating player profile for player_id: {player_id} with defaults: {defaults}")
             
             tb_lib_sqlhandler.update_or_create(session, tb_lib_sqlhandler_models.PlayerProfile,defaults=defaults, player_id=player_id)
         session.commit()  # Commit after processing all player profiles
     
-
 def playerprofile(query:str='',apikey:str=None,version=1):
-    #print(f"Running playerprofile command with param1: {ARGS.param1} and param2: {ARGS.param2}")
+    # print(f"Running playerprofile command with param1: {ARGS.param1} and param2: {ARGS.param2}")
     if helperlib.is_int(query):
         api = get_api(section='user', apikey=apikey, slug=str(query),
                         sleepiferror=True,version=version)
         if version==1:
             api['update_on_via']='update_on_viauserapi_v1'
         api=helperlib.flatten_json(api,delimiter='_')
+        #print(f"API response: {api} for query: {query}")    
     else:
         api=None
     
     #print(f"API response: {api} for query: {query}")
     return api
 
-
-
-
-
+def _playerprofile_update_where_null_level(sqlh=None):
+    model = tb_lib_sqlhandler_models.PlayerProfile
+    with Session(sqlh.engine) as session: 
+        stmt = (
+                select(model.player_id, model.name)
+                .where(model.level.is_(None))
+            )
+        total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
+        print(f"Total NULL level players: {total_count}")
+        # 3. Execute the statement and fetch the results
+        # (Assuming 'session' is your active SQLAlchemy Session object)
+        results = session.execute(stmt).all()
+        count = 0
+        for row in results:
+            print(f"ID: {row.player_id}")
+            api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            player=updateplayerprofile(api_dictlist=api)
+        session.commit()  # Commit after processing all player profiles
+    
 def playerprofile_snapshot():
     sqlh = tb_lib_sqlhandler.SqlAService(
                 database_name =CONFIG.get('DATABASE_NAME',''), 
@@ -696,8 +714,6 @@ def playerprofile_snapshot():
         # 3. Execute the statement and fetch the raw integer scalar value [source: 1, 2]
         # (Assuming 'session' is your active SQLAlchemy Session object)
         #total_count = session.execute(count_stmt).scalar()
-        
-        
         stmt = (
             select(model.player_id, model.name)
             .where(model.level.is_(None))
@@ -710,19 +726,16 @@ def playerprofile_snapshot():
         )
         total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
         print(f"Total NULL level players: {total_count}")
- 
         # 3. Execute the statement and fetch the results
         # (Assuming 'session' is your active SQLAlchemy Session object)
         results = session.execute(stmt).all()
-
-#        # 4. Accessing the results
+        #        # 4. Accessing the results
         count = 0
         for row in results:
             print(f"ID: {row.player_id}, Name: {row.name}")
             api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
             updateplayerprofile(api_dictlist=api)
         session.commit()  # Commit after processing all player profiles
-
         stmt = (
             select(model.player_id, model.name)
             .where(model.update_on_viasnapshotapi > dt_datetime.now(dt_timezone.utc) - timedelta(hours=24))
@@ -738,10 +751,57 @@ def playerprofile_snapshot():
         for row in results:
             count += 1
             print(f"{count}/{total_records}: Fetching player profile for player_id: {row.player_id}, name: {row.name}  ..{tdiff.convert_timediff()} ")
-            
             api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
             updateplayerprofile(api_dictlist=api)
 
+def playerprofile_bounties(threshold_minutes:int=10 ):
+    sqlh = tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+            )
+    BATCH_SIZE = 100
+    batchstart_time = dt_datetime.now(dt_timezone.utc)
+    threshold_time = dt_datetime.now(dt_timezone.utc) - timedelta(minutes=threshold_minutes)
+    playerprofile_threshold_time = dt_datetime.now(dt_timezone.utc) - timedelta(days=7) 
+    model = tb_lib_sqlhandler_models.Bounty
+    totalmembers_processed = 0
+    tdiff = helperlib.TimeDiff()
+    with Session(sqlh.engine) as session:
+        # 3. Execute the statement and fetch the raw integer scalar value [source: 1, 2]
+        # (Assuming 'session' is your active SQLAlchemy Session object)
+        #total_count = session.execute(count_stmt).scalar()
+        stmt = (
+            select(
+                tb_lib_sqlhandler_models.Bounty.target_player_id,
+                tb_lib_sqlhandler_models.PlayerProfile.name,
+                tb_lib_sqlhandler_models.PlayerProfile.level,
+                tb_lib_sqlhandler_models.Bounty.reward,
+                tb_lib_sqlhandler_models.PlayerProfile.update_on_viauserapi_v1
+            )
+            .where(or_(  
+                    tb_lib_sqlhandler_models.PlayerProfile.update_on_viauserapi_v1 < threshold_time,
+                    tb_lib_sqlhandler_models.PlayerProfile.update_on_viauserapi_v1.is_(None)
+                )  
+            )   
+            .join(tb_lib_sqlhandler_models.PlayerProfile, tb_lib_sqlhandler_models.Bounty.target_player_id == tb_lib_sqlhandler_models.PlayerProfile.player_id)
+        ) 
+
+        total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
+        print(f"Total bountied players: {total_count}")
+ 
+        # 3. Execute the statement and fetch the results
+        # (Assuming 'session' is your active SQLAlchemy Session object)
+        results = session.execute(stmt).all()
+        #        # 4. Accessing the results
+        count = 0
+        results = session.execute(stmt).all()
+        for row in results:
+            count += 1   
+            print(f"{count}/{total_count}: Fetching player profile for player_id: {row.target_player_id}, name: {row.name}  ..{tdiff.convert_timediff()} ")
+            api=playerprofile(query=row.target_player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            updateplayerprofile(api_dictlist=api) 
 
 def factionsearch():
     print(f"Running factionsearch command with param1: {ARGS.param1} and param2: {ARGS.param2}")
@@ -1026,6 +1086,91 @@ def get_items():
             tb_lib_sqlhandler.update_or_create(session=session, model=tb_lib_sqlhandler_models.Item, defaults=defaults, item_id=int(item_data.get('id')))
         session.commit()  # Final commit after processing all rows
         
+def get_bounties(limit_count:int=100, limit_value:int=40000,sleepiferror=True):
+    #https://api.torn.com/v2/torn/bounties?limit=100&offset=0
+
+    sqlh = tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+            )
+    sqlh.truncate_table(tablename='torn_bounty')
+    try:
+        api= get_api(section='torn', selections='bounties',
+            sleepiferror=True,apikey=CONFIG.get('TORN_API_KEY', ''),version=2 ) 
+        #print_debug(message=f"apiresponse= {api} ",debuglog=debuglog)
+    except Exception as e:
+        raise e
+    n=0
+    b_count = 0
+    playerset= set()
+    while api:
+        n += 1
+        next = api['_metadata']['links']['next']
+        bulkobjects_to_create = []
+        for i in api['bounties']:
+            b_count += 1
+            # batch unix timestamp 
+            #print(f"Batch {n} total bounties {b_count}/{len(playerset)}: Processing bounty for target_player_id: {i['target_id']}, lister_player_id: {i['lister_id']}, reward: {i['reward']}, reason: {i['reason']}, quantity: {i['quantity']}, valid_until: {i['valid_until']}")
+            if i['target_id'] not in playerset: 
+                playerset.add(i['target_id'])
+            else:
+                continue  # Skip processing if the target_id has already been processed
+            bulkobjects_to_create.append(
+                {
+                    'target_player_id': i['target_id'],
+                    'lister_player_id': i['lister_id'],
+                    'reward': i['reward'],
+                    'reason': i['reason'],
+                    'quantity': i['quantity'],
+                    'valid_until': i['valid_until'],
+                    'valid_until_truedate': dt_datetime.fromtimestamp(float(i['valid_until']), tz=dt_timezone.utc),
+                }
+            )
+            if limit_count is not None and b_count >= limit_count:
+                print(f"Batch {n} total bounties {b_count}: Reached limit_count of {limit_count}. Stopping further processing.")
+                next = None  # Stop fetching more pages
+                api=None
+                break
+            if limit_value is not None and i['reward'] < limit_value:
+                print(f"Batch {n} total bounties {b_count}: Skipping bounty for target_player_id: {i['target_id']}, reward: {i['reward']}")
+                next = None  # Stop fetching more pages
+                api=None 
+                break
+        with Session(sqlh.engine) as session:
+            print(f"Batch {n} total bounties {b_count}: Inserting {len(bulkobjects_to_create)} bounties into the database.")
+            session.execute(insert(tb_lib_sqlhandler_models.Bounty), bulkobjects_to_create)
+            session.commit()
+        if next: 
+            try: 
+                api= get_api(raw=next, section='torn', selections='bounties',
+                    sleepiferror=True,apikey=CONFIG.get('TORN_API_KEY', ''),version=2 )     
+            except Exception as e:
+                raise e
+        else:
+            api=None
+    print(f"Total bounties processed: {b_count}. Total unique players: {len(playerset)}")
+
+    sql="""INSERT INTO torn_playerprofile (player_id)
+            WITH players AS (
+                SELECT tb.target_player_id AS player_id
+                FROM torn.torn_bounty AS tb
+                UNION DISTINCT
+                SELECT tb.lister_player_id AS player_id
+                FROM torn.torn_bounty AS tb
+            )
+            SELECT
+                player_id
+            FROM players pl
+            WHERE pl.player_id IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1
+                FROM torn_playerprofile pp
+                WHERE pp.player_id = pl.player_id
+            );"""
+    _playerprofile_update_where_null_level(sqlh=sqlh)  # Call the function to update player profiles with NULL levels   
+
 
 def test_db_connection():
     print(f"Testing database connection with config: {CONFIG}")
@@ -1084,6 +1229,17 @@ def main():
         print(f"Running playerprofile_snapshot command with param1: {args_param1} and param2: {args_param2}")
         # Add your playerprofile_snapshot command logic here
         playerprofile_snapshot()  # Call the function to handle player profile snapshot
+    elif args_command == 'playerprofile_bounties' :
+        print(f"Running playerprofile_bounties command with param1: {args_param1} and param2: {args_param2}")
+        if args_param1 and '10' in args_param1:
+            threshold_minutes = 10
+        elif args_param1 and '24' in args_param1:
+            threshold_minutes = 1440  # 24 hours in minutes
+        elif args_param1 and 'a' in args_param1:
+            threshold_minutes = 0  
+        else:
+            threshold_minutes = 10  # Default threshold
+        playerprofile_bounties(threshold_minutes=threshold_minutes)
     elif (args_command == 'playerprofile' ):
         if not args_param2 or 'p' in args_param2:
             # update using update_on_viauserapi_v1
@@ -1134,10 +1290,17 @@ def main():
              
         else: 
             tb_lib_selenium.getbazaar(bazaar_api_url=CONFIG.get('BAZAAR_API_URL',''),) 
-  
+    elif (args_command == 'bounties'  ):
+        limit_value = 45000
+        if args_param1 and 'a' in args_param1:
+            limit_value = None
+        elif args_param1 and args_param1.isdigit():
+            limit_value = int(args_param1)
+        get_bounties(limit_count=None, limit_value=limit_value,sleepiferror=True) 
+    
         
 
-
+ 
 
 
         
@@ -1161,7 +1324,7 @@ class TornAPIError(Exception):
             return f"ThirdPartyAPIError10: superstr={super().__str__()}  reason={self.reason}  "
         return super().__str__()
 
-
+  
 @dataclass 
 class FactionSearch:
     # https://api.torn.com/v2/faction/search?limit=20&offset=0
