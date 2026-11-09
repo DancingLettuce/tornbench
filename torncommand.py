@@ -91,7 +91,10 @@ ALLOWED_COMMANDS={
     'getitems': 'get items from torn api',
     'seleniumbazaar': 'get bazaar data using Selenium',
     'bounties': 'get bounties a[a=all]', 
+    'showbounties': 'show bounties countrystring/',
     'playerprofile_bounties': 'get player profile for all bountied players a10[a=all/10=updated 10mins/24=not updated 24 hours]',
+    'playerprofile_bountycountry': 'get playprofile for the bounties in country',
+
     }
   
 ARGS, ARBITRARY_ARGS = init_argparse()
@@ -754,6 +757,59 @@ def playerprofile_snapshot():
             api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
             updateplayerprofile(api_dictlist=api)
 
+
+def playerprofile_bountycountry():
+    sqlh = tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+            )
+    BATCH_SIZE = 100
+    # Define your threshold (e.g., must not have been processed in the last 24 hours)
+    batchstart_time = dt_datetime.now(dt_timezone.utc)
+    threshold_time = dt_datetime.now(dt_timezone.utc) - timedelta(days=7)
+    playerprofile_threshold_time = dt_datetime.now(dt_timezone.utc) - timedelta(days=7) 
+    model = tb_lib_sqlhandler_models.PlayerProfile
+    totalfaction_processed = 0
+    totalmembers_processed = 0
+    tdiff = helperlib.TimeDiff()
+    m_bounty=tb_lib_sqlhandler_models.Bounty 
+    m_playerprofile=tb_lib_sqlhandler_models.PlayerProfile
+    with Session(sqlh.engine) as session:
+        stmt = (
+                select(
+                    m_bounty.target_player_id,
+                    m_playerprofile.player_id,   
+                    m_playerprofile.name,
+                    m_playerprofile.level,
+                    m_bounty.reward,
+                    m_playerprofile.status_details,
+                    m_playerprofile.status_description,
+                    m_playerprofile.status_until_truedate
+                )
+                .join(
+                    m_playerprofile,
+                    m_bounty.target_player_id == m_playerprofile.player_id
+                )
+            )
+        location = 'UAE'  
+        stmt = stmt.where(
+                m_playerprofile.status_description.like(f'%{location}%')
+            )
+        stmt = stmt.order_by(m_bounty.reward.desc() )
+        total_records = total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
+        print(f"Total players in location {location}: {total_records}")
+        results = session.execute(stmt).all()
+        count = 0    
+        for row in results:
+            count += 1
+            print(f"{count}/{total_records}: Fetching player profile for player_id: {row.player_id}, name: {row.name}  ..{tdiff.convert_timediff()} ")
+            api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
+            updateplayerprofile(api_dictlist=api)
+
+
+
 def playerprofile_bounties(threshold_minutes:int=10 ):
     sqlh = tb_lib_sqlhandler.SqlAService(
                 database_name =CONFIG.get('DATABASE_NAME',''), 
@@ -1172,6 +1228,7 @@ def get_bounties(limit_count:int=100, limit_value:int=40000,sleepiferror=True):
     _playerprofile_update_where_null_level(sqlh=sqlh)  # Call the function to update player profiles with NULL levels   
 
 
+
 def test_db_connection():
     print(f"Testing database connection with config: {CONFIG}")
     sqlh = tb_lib_sqlhandler.SqlAService(
@@ -1297,8 +1354,50 @@ def main():
         elif args_param1 and args_param1.isdigit():
             limit_value = int(args_param1)
         get_bounties(limit_count=None, limit_value=limit_value,sleepiferror=True) 
-    
-        
+    elif (args_command == 'showbounties'  ):
+        m_bounty=tb_lib_sqlhandler_models.Bounty
+        m_playerprofile=tb_lib_sqlhandler_models.PlayerProfile
+        with Session(tb_lib_sqlhandler.SqlAService(
+                database_name =CONFIG.get('DATABASE_NAME',''), 
+                database_host = CONFIG.get('DATABASE_HOST',''),
+                database_user = CONFIG.get('DATABASE_USER',''),
+                database_password = CONFIG.get('DATABASE_PASSWORD',''),
+                ).engine) as session:
+            stmt = (
+                select(
+                    m_bounty.target_player_id,
+                    m_playerprofile.name,
+                    m_playerprofile.level,
+                    m_bounty.reward,
+                    m_playerprofile.status_details,
+                    m_playerprofile.status_description,
+                    m_playerprofile.status_until_truedate
+                )
+                .join(
+                    m_playerprofile,
+                    m_bounty.target_player_id == m_playerprofile.player_id
+                )
+            )
+            location = 'UAE'
+            stmt = stmt.where(
+                    m_playerprofile.status_description.like(f'%{location}%')
+                )
+            stmt = stmt.order_by(m_bounty.reward.desc() )
+
+            # Execute the statement and fetch all rows
+            results = session.execute(stmt).all()
+
+            # Example of iterating through the results
+            for row in results:
+                print(
+                    row.target_player_id, 
+                    row.level,
+                    row.name, 
+                    row.reward, 
+                    row.status_description
+                )
+    elif args_command == 'playerprofile_bountycountry':
+        playerprofile_bountycountry() 
 
  
 
