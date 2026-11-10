@@ -650,6 +650,15 @@ def updateplayerprofile(api_dictlist=None):
             #print(f"Updating or creating player profile for player_id: {player_id} with defaults: {defaults}")
             
             tb_lib_sqlhandler.update_or_create(session, tb_lib_sqlhandler_models.PlayerProfile,defaults=defaults, player_id=player_id)
+            insert_playerstakeout(session=session, 
+                state=api_dict.get('status_state',None), 
+                location='',
+                description=api_dict.get('status_description',None),
+                last_action_relative=api_dict.get('last_action_relative',None),
+                last_action_truedate=dt_datetime.fromtimestamp(float(api_dict['last_action_timestamp']), tz=dt_timezone.utc),
+                details=api_dict.get('status_details',None),
+                torn_player_id=player_id
+                )
         session.commit()  # Commit after processing all player profiles
     
 def playerprofile(query:str='',apikey:str=None,version=1):
@@ -757,8 +766,7 @@ def playerprofile_snapshot():
             api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
             updateplayerprofile(api_dictlist=api)
 
-
-def playerprofile_bountycountry():
+def playerprofile_bountycountry(location:str=None):
     sqlh = tb_lib_sqlhandler.SqlAService(
                 database_name =CONFIG.get('DATABASE_NAME',''), 
                 database_host = CONFIG.get('DATABASE_HOST',''),
@@ -793,10 +801,13 @@ def playerprofile_bountycountry():
                     m_bounty.target_player_id == m_playerprofile.player_id
                 )
             )
-        location = 'UAE'  
-        stmt = stmt.where(
-                m_playerprofile.status_description.like(f'%{location}%')
-            )
+        if location:
+                stmt = stmt.where(
+                        or_(  
+                        m_playerprofile.status_description.like(f'%in {location}%'),
+                        m_playerprofile.status_description.like(f'%to {location}%'), 
+                    )  
+                    )
         stmt = stmt.order_by(m_bounty.reward.desc() )
         total_records = total_count=tb_lib_sqlhandler.get_statement_count(session=session, stmt=stmt)
         print(f"Total players in location {location}: {total_records}")
@@ -807,8 +818,6 @@ def playerprofile_bountycountry():
             print(f"{count}/{total_records}: Fetching player profile for player_id: {row.player_id}, name: {row.name}  ..{tdiff.convert_timediff()} ")
             api=playerprofile(query=row.player_id, apikey=CONFIG.get('TORN_API_KEY', ''),version=1)
             updateplayerprofile(api_dictlist=api)
-
-
 
 def playerprofile_bounties(threshold_minutes:int=10 ):
     sqlh = tb_lib_sqlhandler.SqlAService(
@@ -1227,6 +1236,56 @@ def get_bounties(limit_count:int=100, limit_value:int=40000,sleepiferror=True):
             );"""
     _playerprofile_update_where_null_level(sqlh=sqlh)  # Call the function to update player profiles with NULL levels   
 
+def insert_playerstakeout(state:str='', location:str='', description:str='',
+    last_action_relative:str='', last_action_truedate=None,
+    details:str='', torn_player_id:int=None, 
+    session=None):
+    
+    if ('Okay' in description or 'Returning to Torn' in description or
+       'to Torn' in description
+        ):
+        location = 'Torn'
+    elif 'British' in description or 'United Kingdom' in description:
+        location = 'UK'
+    elif 'Canadian' in description or 'Canada' in description:
+        location = 'Canada'
+    elif 'Caymanian' in description or 'Cayman' in description:
+        location = 'Cayman'
+    elif 'Chinese' in description or 'China' in description:
+        location = 'China'
+    elif 'Hawaii' in description:
+        location = 'Hawaii'
+    elif 'Japan' in description:
+        location = 'Japan'
+    elif 'Mexic' in description:  
+        location = 'Mexico'
+    elif 'South Africa' in description:
+        location = 'South Africa'
+    elif 'Swiss' in description or 'Switzerland' in description:
+        location = 'Switzerland'
+    elif 'Argentin' in description :
+        location = 'Argentina'
+    elif 'British' in description or 'United Kingdom' in description:
+        location = 'UK'
+    elif 'Emirati' in description or 'UAE' in description:
+        location = 'UAE' 
+    elif 'In hospital' or 'jail' in description:
+        location = 'Torn'    
+
+
+    new_stakeout = tb_lib_sqlhandler_models.PlayerStakeout(
+        state=state,
+        location=location,
+        description=description,
+        last_action_relative=last_action_relative,
+        last_action_truedate=last_action_truedate,
+        transition_datetime=None,
+        comment='',
+        details=details,
+        torn_player_id=torn_player_id
+    )
+    session.add(new_stakeout)
+
 
 
 def test_db_connection():
@@ -1378,10 +1437,14 @@ def main():
                     m_bounty.target_player_id == m_playerprofile.player_id
                 )
             )
-            location = 'UAE'
-            stmt = stmt.where(
-                    m_playerprofile.status_description.like(f'%{location}%')
-                )
+            # location
+            if args_param1:
+                stmt = stmt.where(
+                        or_(  
+                        m_playerprofile.status_description.like(f'%in {args_param1}%'),
+                        m_playerprofile.status_description.like(f'%to {args_param1}%'), 
+                    )  
+                    )
             stmt = stmt.order_by(m_bounty.reward.desc() )
 
             # Execute the statement and fetch all rows
@@ -1397,7 +1460,7 @@ def main():
                     row.status_description
                 )
     elif args_command == 'playerprofile_bountycountry':
-        playerprofile_bountycountry() 
+        playerprofile_bountycountry(location=args_param1)  
 
  
 

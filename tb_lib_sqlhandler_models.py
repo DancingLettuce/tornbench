@@ -173,4 +173,22 @@ class Bounty(Base):
     lister_player_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     target_player_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     
-     
+
+class PlayerStakeout(Base):
+    __tablename__ = "torn_playerstakeout"
+    # Primary Key
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # Datetimes
+    created_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    updated_on: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET, server_default=text("getdate()") )
+    state: Mapped[Optional[str]] = mapped_column(String(200))
+    location: Mapped[Optional[str]] = mapped_column(String(200))
+    description: Mapped[Optional[str]] = mapped_column(String(200))
+    last_action_relative: Mapped[Optional[str]] = mapped_column(String(200))
+    last_action_truedate: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET)
+    transition_datetime: Mapped[Optional[datetime]] = mapped_column(DATETIMEOFFSET)
+    comment: Mapped[Optional[str]] = mapped_column(String(200))
+    details: Mapped[Optional[str]] = mapped_column(String(200))
+    torn_player_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+
+    
